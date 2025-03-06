@@ -23,13 +23,15 @@ RED = (255, 0, 0)
 WHITE = (255, 255, 255)
 CYAN = (100, 100, 255)
 
+player_damage = 10
+
 BG_COLOR = (20, 20, 20)
 PLAYER_COLOR = (0, 0, 0)
 PLATFORM_COLOR = (50, 100, 20)
 ENTITY_COLOR = (255, 0, 0)
 ATTACK_COLOR = (255, 255, 0)
 
-player_exp = 9999
+player_exp = 0
 player_health = 100
 player_max_health = 100
 
@@ -43,10 +45,31 @@ run = True
 playerdead = False
 jump = False
 
-player_texture = pygame.image.load("player_texture.png")
+player_texture = pygame.image.load("textures/player/player.png")
 
 sc = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
+
+FONT = pygame.font.SysFont("Arial", 30)
+HEALTH_FONT = pygame.font.SysFont("Arial", 25, bold=True)
+
+class DamageText:
+    def __init__(self, x, y, text, duration=60):
+        self.x = x + random.randint(-20, 20)
+        self.y = HEIGHT - 50
+        self.text = text
+        self.duration = duration
+        self.alpha = 255
+
+    def update(self):
+        self.alpha -= 4
+        self.duration -= 1
+
+    def draw(self, surface):
+        if self.duration > 0:
+            temp_surface = HEALTH_FONT.render(self.text, True, (255, 0, 0))
+            temp_surface.set_alpha(self.alpha)
+            surface.blit(temp_surface, (self.x, self.y))
 
 
 class Block_creator:
@@ -87,7 +110,7 @@ class Player(Block_creator):
         self.direction = "right"
         self.attack_rect = None
         self.player_health = 100
-        self.walk_frames = [pygame.image.load(f"player_walk{i}.png").convert_alpha() for i in range(1, 8)]
+        self.walk_frames = [pygame.image.load(f"textures/player/animation/player_walk/player_walk{i}.png").convert_alpha() for i in range(1, 5)]
         self.current_frame = 0
         self.animation_speed = 0.2
         self.frame_index = 0
@@ -107,7 +130,8 @@ class Player(Block_creator):
         elif dx > 0:
             self.direction = "right"
 
-    def attack(self, entities, a=None):
+    def attack(self, entities, ):
+        global player_damage
         attack_width = 50
         attack_height = 20
 
@@ -123,8 +147,8 @@ class Player(Block_creator):
 
         for entity in entities:
             if entity.is_alive() and self.attack_rect.colliderect(entity.rect):
-                entity.take_damage(100)
-
+                entity.take_damage(player_damage)
+                show_damage(random.randint(50, WIDTH - 200), HEIGHT - 50, entity.health)
 
 
 class Entity:
@@ -210,17 +234,22 @@ class Label(Area):
         sc.blit(self.image, (self.rect.x + x, self.rect.y + y))
 
 
-player = Player(1000, 600, 40, 86, player_texture)
-platform = Block_creator(0, 700, WIDTH * 9000, 30)
+player = Player(160, 474, 40, 86, player_texture)
+
+damage_texts = []
 
 blocks = [
-    platform
+    Block_creator(0, 560, 500, 40),
+    Block_creator(480, 560, 500, 40),
+    Block_creator(960, 560, 500, 40),
+    Block_creator(1440, 520, 500, 40),
+    Block_creator(1920, 480, 500, 40),
+    Block_creator(2400, 440, 500, 40),
+    Block_creator(2880, 480, 500, 40)
 ]
 
 entities = [
-    Entity(300, 650, 40, 50, 100, 10),
-    Entity(500, 650, 40, 50, 80, 15),
-    Entity(700, 650, 40, 50, 120, 20)
+    Entity(300, 510, 40, 50, 100, 10),
 ]
 
 camera_offset = [0, 0]
@@ -228,22 +257,22 @@ wait_attack = 0
 
 
 def draw_menu():
-    global player_exp, player_max_health, speed
-
     menu_running = True
-    while menu_running:
-        overlay = pygame.Surface((WIDTH, HEIGHT))
-        overlay.set_alpha(100)
-        overlay.fill((30, 30, 30))
-        sc.blit(overlay, (0, 0))
+    overlay = pygame.Surface((WIDTH, HEIGHT))
+    overlay.set_alpha(150)
+    overlay.fill((30, 30, 30))
 
-        font = pygame.font.SysFont(None, 50)
-        menu = font.render("Меню прокачки", True, (255, 255, 255))
-        text1 = font.render("Нажми 1: Додати хп (-150 XP)", True, (255, 255, 255))
-        text2 = font.render("Нажми 2: Додати швидкість (-150 XP)", True, (255, 255, 255))
-        sc.blit(menu, (50, 50))
-        sc.blit(text1, (50, 100))
-        sc.blit(text2, (50, 150))
+    while menu_running:
+        sc.blit(overlay, (0, 0))
+        pygame.draw.rect(sc, (50, 50, 50), (300, 200, 600, 400), border_radius=20)
+
+        title = FONT.render("Меню прокачки", True, (255, 255, 255))
+        sc.blit(title, (500, 220))
+
+        option1 = FONT.render("1: Додати HP (-150 XP)", True, (200, 200, 200))
+        option2 = FONT.render("2: Додати швидкість (-150 XP)", True, (200, 200, 200))
+        sc.blit(option1, (400, 300))
+        sc.blit(option2, (400, 350))
 
         pygame.display.update()
 
@@ -252,21 +281,15 @@ def draw_menu():
                 pygame.quit()
                 exit()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_1 and player_exp >= 150:
-                    player_max_health += 20
-                    player_exp -= 150
+                if event.key == pygame.K_ESCAPE:
                     menu_running = False
-                elif event.key == pygame.K_2 and player_exp >= 150:
-                    speed += 1
-                    player_exp -= 150
-                    menu_running = False
-                elif event.key == pygame.K_ESCAPE:
-                    menu_running = False
-                    pygame.time.delay(1)
         pygame.time.delay(50)
 
+def show_damage(x, y, hp_left):
+    damage_texts.append(DamageText(x, y, f"{hp_left} HP"))
 
 while run:
+    sc.fill((0,0,0))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
@@ -289,8 +312,8 @@ while run:
                 player = Player(x, y, 40, 86,player_texture)
                 entities = [
                     Entity(300, 650, 40, 50, 100, 10),
-                    Entity(500, 650, 40, 50, 80, 15),
-                    Entity(700, 650, 40, 50, 120, 20)
+                    Entity(500, 650, 40, 50, 100, 15),
+                    Entity(700, 650, 40, 50, 100, 20)
                 ]
 
     wait_attack -= 1
@@ -390,6 +413,12 @@ while run:
     for b in blocks:
         b.draw(sc, camera_offset, PLATFORM_COLOR)
 
+    for dmg_text in damage_texts[:]:
+        dmg_text.update()
+        dmg_text.draw(sc)
+        if dmg_text.duration <= 0:
+            damage_texts.remove(dmg_text)
+
     if entity.rect.colliderect(player.rect):
         if time_since_last_damage >= damage_interval:
             player_health -= damage_amount
@@ -412,7 +441,7 @@ while run:
         player_health = 0
 
         font = pygame.font.SysFont(None, 60)
-        text = font.render("ПРОГРАШ!Нажми Q щоб грати заново", True, RED)
+        text = font.render("ПРОГРАШ!Нажми Q щоб грати заново", True, CYAN)
         sc.blit(text, (220, HEIGHT // 2))
 
     pygame.display.update()
